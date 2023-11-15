@@ -52,8 +52,19 @@ class BigramFeatureExtractor(FeatureExtractor):
     Bigram feature extractor analogous to the unigram one.
     """
     def __init__(self, indexer: Indexer):
-        raise Exception("Must be implemented")
+        self.indexer = indexer
 
+    def get_indexer(self):
+        return self.indexer
+
+    def extract_features(self, ex_words: List[str], add_to_indexer: bool) -> List[int]:
+        str_features = np.zeros(self.indexer.__len__(),dtype=int)
+        for i in range(0, len(ex_words)-1):
+            bigram = ex_words[i] + ' ' + ex_words[i + 1]
+            if self.indexer.contains(bigram.lower()):
+                index = self.indexer.index_of(bigram.lower())
+                str_features[index] += 1
+        return str_features
 
 class BetterFeatureExtractor(FeatureExtractor):
     """
@@ -145,8 +156,8 @@ def train_logistic_regression(train_exs: List[SentimentExample], feat_extractor:
     """
     indexer = feat_extractor.get_indexer()
     weights = np.transpose(np.zeros(indexer.__len__(), dtype=int))
-    learning_rate = 0.01
-    Epoch = 45
+    learning_rate = 0.0001
+    Epoch = 10
     for i in range(Epoch):
         for ex in train_exs:
             str_features = feat_extractor.extract_features(ex.words, False)
@@ -155,8 +166,8 @@ def train_logistic_regression(train_exs: List[SentimentExample], feat_extractor:
             w_gradient = np.dot(ex.label - possibility, str_features)
             weights = np.add(weights, np.dot(learning_rate, w_gradient))
     return LogisticRegressionClassifier(weights, feat_extractor)
-    # 0.01 learning rate per 45 Epochs for 0.77% in 14 seconds
-    #
+    # 0.01 learning rate per 45 Epochs for 0.77% in 14 seconds: unigrams
+    # _ learning rate per _ Epochs for in _ seconds
 
 def train_model(args, train_exs: List[SentimentExample], dev_exs: List[SentimentExample]) -> SentimentClassifier:
     """
@@ -183,7 +194,14 @@ def train_model(args, train_exs: List[SentimentExample], dev_exs: List[Sentiment
         feat_extractor = UnigramFeatureExtractor(indexer)
     elif args.feats == "BIGRAM":
         # Add additional preprocessing code here
-        feat_extractor = BigramFeatureExtractor(Indexer())
+        for ex in train_exs:
+            for i in range(0, len(ex.words) - 1):
+                if stop_words.__contains__(ex.words[i]) and stop_words.__contains__(ex.words[i+1]) or (
+                        punkt.__contains__(ex.words[i]) or punkt.__contains__(ex.words[i+1])):
+                    continue
+                bigram = ex.words[i] + ' ' + ex.words[i + 1]
+                indexer.add_and_get_index(bigram.lower())
+        feat_extractor = BigramFeatureExtractor(indexer)
     elif args.feats == "BETTER":
         # Add additional preprocessing code here
         feat_extractor = BetterFeatureExtractor(Indexer())
